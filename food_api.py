@@ -1,10 +1,19 @@
 import flask
 from flask import request, jsonify
-import database_connection
-
+import pyodbc
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+
+
+def db_connection():
+    connection = pyodbc.connect(
+        'Driver={ODBC Driver 13 for SQL Server};'
+        'Server=DESKTOP-7FQ889E\SQLEXPRESS;'
+        'Database=Food_Log;'
+        'Trusted_Connection=yes;'
+    )
+    return connection
 
 
 @app.route('/', methods=['GET'])
@@ -19,7 +28,7 @@ def page_not_found(e):
 
 @app.route('/all', methods=['GET'])
 def status_all():
-    connection = database_connection.db_connection()
+    connection = db_connection()
     cursor = connection.cursor()
     all_status = cursor.execute('select * from order_history').fetchall()
     columns = [column[0] for column in cursor.description]
@@ -27,7 +36,7 @@ def status_all():
     [result.append(dict(zip(columns, row))) for row in all_status]
     return jsonify(result)
 
-""""""
+
 @app.route('/filter', methods=['GET'])
 def database_filter():
     query_parameters = request.args
@@ -54,7 +63,7 @@ def database_filter():
 
     query = query[:-4] + ';'
 
-    connection = database_connection.db_connection()
+    connection = db_connection()
     cursor = connection.cursor()
     filtered_result = cursor.execute(query, to_filter).fetchall()
     columns = [column[0] for column in cursor.description]
@@ -62,6 +71,26 @@ def database_filter():
     [result.append(dict(zip(columns, row))) for row in filtered_result]
     print(result)
     return jsonify(result)
+
+
+@app.route('/add', methods=['POST'])
+def get_data():
+    if not request.is_json:
+        return "The input data is not in a json format."
+    else:
+        content = request.get_json()
+        # print(content)
+        data_to_write_to_db = []
+        [data_to_write_to_db.append(value) for value in content.values()]
+
+        connection = db_connection()
+        cursor = connection.cursor()
+        sql_query = """INSERT INTO dbo.order_history
+                        (ID_User, Status, Additional_Info)
+                         VALUES (?,?,?)"""
+        cursor.execute(sql_query, data_to_write_to_db)
+        connection.commit()
+        return 'Posted successfully.'
 
 
 if __name__ == "__main__":
